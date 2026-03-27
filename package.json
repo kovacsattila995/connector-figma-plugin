@@ -1,0 +1,24 @@
+{
+  "name": "connector-figma-plugin",
+  "version": "1.0.0",
+  "description": "Figma plugin to connect two selected elements with a connector line",
+  "scripts": {
+    "build": "BUILD_TARGET=code vite build && BUILD_TARGET=ui vite build",
+    "build:code": "BUILD_TARGET=code vite build",
+    "build:ui": "BUILD_TARGET=ui vite build",
+    "dev": "BUILD_TARGET=code vite build --watch & BUILD_TARGET=ui vite build --watch"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.103.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vite-plugin-singlefile": "^2.0.2"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
