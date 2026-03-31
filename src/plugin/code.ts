@@ -193,6 +193,44 @@ function createCurvedConnector(
   }], sw, color);
 }
 
+// --- Coordinate helpers ---
+
+// Convert a canvas-space point into a node's local coordinate space
+// using the inverse of its absoluteTransform (handles rotation + scale too).
+function canvasToLocal(point: Point, node: SceneNode): Point {
+  const [[a, b, tx], [c, d, ty]] = node.absoluteTransform;
+  const det = a * d - b * c;
+  if (Math.abs(det) < 0.0001) return point; // degenerate transform, fall back
+  return {
+    x: (d * (point.x - tx) - b * (point.y - ty)) / det,
+    y: (a * (point.y - ty) - c * (point.x - tx)) / det,
+  };
+}
+
+// --- Layer hierarchy helpers ---
+
+function getAncestorChain(node: SceneNode): BaseNode[] {
+  const chain: BaseNode[] = [];
+  let current: BaseNode = node;
+  while (current.parent) {
+    chain.push(current.parent);
+    current = current.parent;
+  }
+  return chain; // [immediate parent, ..., page]
+}
+
+function lowestCommonAncestor(a: SceneNode, b: SceneNode): BaseNode {
+  const chainA = getAncestorChain(a);
+  const chainBIds = new Set(getAncestorChain(b).map(n => n.id));
+
+  for (const ancestor of chainA) {
+    if (chainBIds.has(ancestor.id) && ancestor.type !== 'INSTANCE') {
+      return ancestor;
+    }
+  }
+  return figma.currentPage;
+}
+
 // --- Core connect ---
 // Returns the created VectorNode so callers can track it for live-update.
 
@@ -201,8 +239,18 @@ function doConnect(sourceNode: SceneNode, targetNode: SceneNode, s: ConnectSetti
   const tgtBox = getAbsoluteBBox(targetNode);
   const srcSide = getEffectiveSide(s.sourceMagnet, srcBox, tgtBox, true);
   const tgtSide = getEffectiveSide(s.targetMagnet, srcBox, tgtBox, false);
-  const p1 = getConnectionPoint(srcBox, srcSide, s.sourceOffset);
-  const p2 = getConnectionPoint(tgtBox, tgtSide, s.targetOffset);
+
+  // Compute connection points in canvas space first.
+  let p1 = getConnectionPoint(srcBox, srcSide, s.sourceOffset);
+  let p2 = getConnectionPoint(tgtBox, tgtSide, s.targetOffset);
+
+  // Translate to container-local space if the LCA is not the page.
+  const container = lowestCommonAncestor(sourceNode, targetNode);
+  if (container.type !== 'PAGE' && container.type !== 'DOCUMENT') {
+    const c = container as SceneNode;
+    p1 = canvasToLocal(p1, c);
+    p2 = canvasToLocal(p2, c);
+  }
 
   let vector: VectorNode;
   if (s.lineType === 'STRAIGHT') {
@@ -212,7 +260,8 @@ function doConnect(sourceNode: SceneNode, targetNode: SceneNode, s: ConnectSetti
   } else {
     vector = createElbowConnector(p1, p2, srcSide, tgtSide, s.strokeWeight, s.startCap, s.endCap, s.color);
   }
-  figma.currentPage.appendChild(vector);
+
+  (container as ChildrenMixin).appendChild(vector);
   return vector;
 }
 
@@ -231,11 +280,11 @@ function tryReroute() {
   if (sel.length !== 1 || sel[0].id !== lastConnection.targetId) return;
 
   const targetNode = sel[0];
-  const sourceNode = figma.currentPage.findOne(n => n.id === lastConnection!.sourceId) as SceneNode | null;
+  const sourceNode = figma.getNodeById(lastConnection!.sourceId) as SceneNode | null;
   if (!sourceNode) { lastConnection = null; return; }
 
   // Remove old vector (it may have been manually deleted already)
-  const oldVector = figma.currentPage.findOne(n => n.id === lastConnection!.vectorId);
+  const oldVector = figma.getNodeById(lastConnection!.vectorId);
   if (oldVector) oldVector.remove();
 
   try {
