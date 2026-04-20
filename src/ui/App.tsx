@@ -259,7 +259,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
     >
       <span style={css.toggleLabel}>Auto</span>
       <span style={{ ...css.toggleTrack, background: value ? '#0d99ff' : '#d0d0d0' }}>
-        <span style={{ ...css.toggleThumb, transform: value ? 'translateX(12px)' : 'translateX(1px)' }} />
+        <span style={{ ...css.toggleThumb, transform: value ? 'translateX(12px)' : 'translateX(0)' }} />
       </span>
     </button>
   );
@@ -334,37 +334,36 @@ export default function App() {
     };
   }, []);
 
+  const hint = getHint(anchorState, autoConnect, pendingNames, !!flash);
+  const liveEdit = anchorState === 'both' && !pendingNames;
+
   return (
     <div style={css.root}>
+      <div style={css.scrollArea}>
 
-      {/* ── Unified top slot: success toast OR hint toast ── */}
-      {(() => {
-        const hint = getHint(anchorState, autoConnect, pendingNames, !!flash);
-        return (
-          <>
-            {/* Success toast */}
-            <div style={{ ...css.toast, ...(flash ? css.toastIn : css.toastOut) }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-                <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
-                <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span style={css.toastText}>
-                <b>{flash?.source}</b>
-                <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
-                <b>{flash?.target}</b>
-              </span>
-            </div>
-            {/* Hint toast */}
-            <div style={{ ...css.hintToast, ...(!flash && hint ? css.toastIn : css.toastOut) }}>
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-                <circle cx="7" cy="7" r="6" stroke="#0d99ff" strokeWidth="1.4"/>
-                <path d="M7 6.5v3.5M7 4.5v.5" stroke="#0d99ff" strokeWidth="1.4" strokeLinecap="round"/>
-              </svg>
-              <span style={css.hintText}>{hint}</span>
-            </div>
-          </>
-        );
-      })()}
+      {/* ── Success toast ── */}
+      <div style={{ ...css.toast, ...(flash ? css.toastIn : css.toastOut) }}>
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+          <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
+          <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span style={css.toastText}>
+          <b>{flash?.source}</b>
+          <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
+          <b>{flash?.target}</b>
+        </span>
+      </div>
+
+      {/* ── Inline status hint (always visible, no animation) ── */}
+      {hint && (
+        <div style={css.inlineHint}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+            <circle cx="6" cy="6" r="5" stroke="#0d99ff" strokeWidth="1.2"/>
+            <path d="M6 5.5v3M6 3.5v.5" stroke="#0d99ff" strokeWidth="1.2" strokeLinecap="round"/>
+          </svg>
+          <span>{hint}</span>
+        </div>
+      )}
 
       {/* ── Line type ── */}
       <div style={css.card}>
@@ -396,6 +395,11 @@ export default function App() {
           onTargetChange={setTargetMagnet}
           activeState={anchorState}
         />
+        {liveEdit && (
+          <div style={css.liveEditHint}>
+            The last connector is still active — adjust its anchor points and settings above, or shift-click the next target to continue.
+          </div>
+        )}
       </div>
 
       {/* ── Arrowheads ── */}
@@ -523,7 +527,9 @@ export default function App() {
         </div>
       )}
 
-      {/* ── Footer: Connect button (manual mode only) ── */}
+      </div>{/* end scrollArea */}
+
+      {/* ── Footer: Connect button (manual mode only, always at bottom) ── */}
       <div style={css.footer}>
         {pendingNames && (
           <button
@@ -549,12 +555,19 @@ const css: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: '#1a1a1a',
     background: '#f0f0f0',
-    minHeight: '100vh',
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    boxSizing: 'border-box',
+  },
+  scrollArea: {
+    flex: 1,
+    overflowY: 'auto' as const,
     padding: 10,
     display: 'flex',
     flexDirection: 'column',
     gap: 6,
-    boxSizing: 'border-box',
+    boxSizing: 'border-box' as const,
   },
 
   // Card header row (label + toggle)
@@ -572,41 +585,53 @@ const css: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase' as const, color: '#bbb',
   },
   toggleTrack: {
-    position: 'relative' as const, width: 26, height: 14,
-    borderRadius: 7, transition: 'background 0.15s ease', flexShrink: 0,
+    position: 'relative' as const, width: 28, height: 16,
+    borderRadius: 8, transition: 'background 0.15s ease',
+    flexShrink: 0, overflow: 'hidden' as const,
   },
   toggleThumb: {
-    position: 'absolute' as const, top: 2, width: 10, height: 10,
-    borderRadius: 5, background: '#fff',
-    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    position: 'absolute' as const, top: 2, left: 2, width: 12, height: 12,
+    borderRadius: 6, background: '#fff',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.25)',
     transition: 'transform 0.15s ease',
   },
 
-  // Hint toast
-  hintToast: {
-    display: 'flex', alignItems: 'center', gap: 7,
-    padding: '8px 12px',
-    background: '#fff',
-    border: '1px solid #e8e8e8',
-    borderRadius: 8,
-    fontSize: 12,
-    transition: 'opacity 0.25s ease, transform 0.25s ease',
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  // Inline status hint (always visible, no animation)
+  inlineHint: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '7px 10px',
+    background: '#f0f6ff',
+    border: '1px solid #d6eaff',
+    borderRadius: 7,
+    fontSize: 11,
+    color: '#3a7cc5',
   },
-  hintText: { color: '#666', flex: 1 },
 
-  // Footer
+  // Live-edit hint inside Connection points card
+  liveEditHint: {
+    fontSize: 10,
+    color: '#aaa',
+    lineHeight: 1.5,
+    paddingTop: 2,
+  },
+
+  // Footer (always at bottom, fixed height)
   footer: {
-    marginTop: 'auto' as const,
-    paddingTop: 4,
+    flexShrink: 0,
+    padding: '8px 10px',
+    borderTop: '1px solid #e8e8e8',
+    background: '#f0f0f0',
+    minHeight: 50,
+    display: 'flex',
+    alignItems: 'center',
   },
   connectBtn: {
-    width: '100%', height: 34,
+    flex: 1, height: 34,
     background: '#0d99ff', color: '#fff',
     border: 'none', borderRadius: 8,
     fontSize: 12, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+    overflow: 'hidden', whiteSpace: 'nowrap' as const,
     transition: 'background 0.1s ease',
   },
 
