@@ -270,8 +270,10 @@ function getHint(
   autoConnect: boolean,
   pendingNames: { source: string; target: string } | null,
   hasFlash: boolean,
+  selCount: number,
 ): string | null {
   if (hasFlash) return null;
+  if (selCount > 2) return `${selCount} objects selected — deselect down to 2 to create a connector`;
   if (anchorState === 'none') return 'Select a source object';
   if (anchorState === 'source') return autoConnect
     ? 'Shift-click a target to connect'
@@ -289,6 +291,7 @@ export default function App() {
   const [anchorState, setAnchorState] = useState<'none' | 'source' | 'both'>('none');
   const [autoConnect, setAutoConnect] = useState(true);
   const [pendingNames, setPendingNames] = useState<{ source: string; target: string } | null>(null);
+  const [selCount, setSelCount] = useState(0);
 
   const [sourceMagnet, setSourceMagnet] = useState<Magnet>('AUTO');
   const [targetMagnet, setTargetMagnet] = useState<Magnet>('AUTO');
@@ -315,6 +318,7 @@ export default function App() {
       if (msg.type === 'state-update') {
         setErrorMsg(null);
         setPendingNames(null);
+        setSelCount(msg.count ?? (msg.source ? 1 : 0));
         setAnchorState(msg.source ? 'source' : 'none');
       }
       if (msg.type === 'ready-to-connect') {
@@ -334,7 +338,7 @@ export default function App() {
     };
   }, []);
 
-  const hint = getHint(anchorState, autoConnect, pendingNames, !!flash);
+  const hint = getHint(anchorState, autoConnect, pendingNames, !!flash, selCount);
   const liveEdit = anchorState === 'both' && !pendingNames;
 
   return (

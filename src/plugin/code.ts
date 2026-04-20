@@ -432,7 +432,7 @@ figma.on('selectionchange', () => {
   clearPending();
   prevSingleSelectionId = null;
   lastConnection = null;
-  figma.ui.postMessage({ type: 'state-update', source: null, target: null });
+  figma.ui.postMessage({ type: 'state-update', source: null, target: null, count: sel.length });
 });
 
 // Send initial state based on what's currently selected
