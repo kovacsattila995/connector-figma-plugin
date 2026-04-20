@@ -542,10 +542,10 @@ const css: Record<string, React.CSSProperties> = {
     fontSize: 12,
     color: '#1a1a1a',
     background: '#f0f0f0',
-    height: '100vh',
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
-    boxSizing: 'border-box',
+    overflow: 'hidden',
   },
   scrollArea: {
     flex: 1,
