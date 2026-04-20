@@ -345,29 +345,30 @@ export default function App() {
     <div style={css.root}>
       <div style={css.scrollArea}>
 
-      {/* ── Success toast ── */}
-      <div style={{ ...css.toast, ...(flash ? css.toastIn : css.toastOut) }}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-          <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
-          <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <span style={css.toastText}>
-          <b>{flash?.source}</b>
-          <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
-          <b>{flash?.target}</b>
-        </span>
+      {/* ── Status slot: success toast OR hint — same fixed space, no layout jump ── */}
+      <div style={css.statusSlot}>
+        {flash ? (
+          <div style={css.toast}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+              <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
+              <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span style={css.toastText}>
+              <b>{flash.source}</b>
+              <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
+              <b>{flash.target}</b>
+            </span>
+          </div>
+        ) : (
+          <div style={css.inlineHint}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+              <circle cx="6" cy="6" r="5" stroke="#0d99ff" strokeWidth="1.2"/>
+              <path d="M6 5.5v3M6 3.5v.5" stroke="#0d99ff" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            <span>{hint}</span>
+          </div>
+        )}
       </div>
-
-      {/* ── Inline status hint (always visible, no animation) ── */}
-      {hint && (
-        <div style={css.inlineHint}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-            <circle cx="6" cy="6" r="5" stroke="#0d99ff" strokeWidth="1.2"/>
-            <path d="M6 5.5v3M6 3.5v.5" stroke="#0d99ff" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-          <span>{hint}</span>
-        </div>
-      )}
 
       {/* ── Line type ── */}
       <div style={css.card}>
@@ -533,19 +534,25 @@ export default function App() {
 
       </div>{/* end scrollArea */}
 
-      {/* ── Footer: Connect button (manual mode only, always at bottom) ── */}
-      <div style={css.footer}>
-        {pendingNames && (
-          <button
-            style={css.connectBtn}
-            onClick={() => parent.postMessage({ pluginMessage: { type: 'connect-now' } }, '*')}
-          >
-            Connect: <b style={{ marginLeft: 4 }}>{pendingNames.source}</b>
-            <span style={{ opacity: 0.5, margin: '0 5px' }}>→</span>
-            <b>{pendingNames.target}</b>
-          </button>
-        )}
-      </div>
+      {/* ── Footer: only shown in manual mode ── */}
+      {!autoConnect && (
+        <div style={css.footer}>
+          {pendingNames ? (
+            <button
+              style={css.connectBtn}
+              onClick={() => parent.postMessage({ pluginMessage: { type: 'connect-now' } }, '*')}
+            >
+              Connect: <b style={{ marginLeft: 4 }}>{pendingNames.source}</b>
+              <span style={{ opacity: 0.5, margin: '0 5px' }}>→</span>
+              <b>{pendingNames.target}</b>
+            </button>
+          ) : (
+            <button style={{ ...css.connectBtn, ...css.connectBtnDisabled }} disabled>
+              {selCount > 2 ? `Too many objects selected (${selCount})` : 'Select 2 objects to connect'}
+            </button>
+          )}
+        </div>
+      )}
 
     </div>
   );
@@ -638,8 +645,17 @@ const css: Record<string, React.CSSProperties> = {
     overflow: 'hidden', whiteSpace: 'nowrap' as const,
     transition: 'background 0.1s ease',
   },
+  connectBtnDisabled: {
+    background: '#e0e0e0', color: '#aaa', cursor: 'not-allowed',
+  },
 
-  // Toast
+  // Status slot — fixed container shared by success toast and hint (no layout jump)
+  statusSlot: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+
+  // Success toast
   toast: {
     display: 'flex', alignItems: 'center', gap: 7,
     padding: '8px 12px',
@@ -647,11 +663,10 @@ const css: Record<string, React.CSSProperties> = {
     border: '1px solid #d0f0de',
     borderRadius: 8,
     fontSize: 12,
-    transition: 'opacity 0.25s ease, transform 0.25s ease',
     boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
   },
-  toastIn:  { opacity: 1, transform: 'translateY(0)' },
-  toastOut: { opacity: 0, transform: 'translateY(-6px)', pointerEvents: 'none', border: '1px solid transparent', background: 'transparent', boxShadow: 'none' },
+  toastIn:  {},
+  toastOut: {},
   toastText: { color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
 
   // Card
