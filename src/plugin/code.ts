@@ -407,6 +407,7 @@ figma.on('selectionchange', () => {
         suppressSelectionChangeForTargetId = targetNode.id;
         prevSingleSelectionId = targetNode.id;
         figma.currentPage.selection = [targetNode];
+        figma.notify(`Connected: ${sourceNode.name} → ${targetNode.name}`, { timeout: 2000 });
         figma.ui.postMessage({
           type: 'connected',
           source: nodeInfo(sourceNode),
@@ -483,6 +484,7 @@ figma.ui.onmessage = (msg: {
       suppressSelectionChangeForTargetId = targetNode.id;
       prevSingleSelectionId = targetNode.id;
       figma.currentPage.selection = [targetNode];
+      figma.notify(`Connected: ${sourceNode.name} → ${targetNode.name}`, { timeout: 2000 });
       figma.ui.postMessage({
         type: 'connected',
         source: nodeInfo(sourceNode),

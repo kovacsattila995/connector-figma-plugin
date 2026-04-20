@@ -269,24 +269,21 @@ function getHint(
   anchorState: 'none' | 'source' | 'both',
   autoConnect: boolean,
   pendingNames: { source: string; target: string } | null,
-  hasFlash: boolean,
   selCount: number,
-): string | null {
-  if (hasFlash) return null;
-  if (selCount > 2) return `${selCount} objects selected — deselect down to 2 to create a connector`;
+): string {
+  if (selCount > 2) return `${selCount} objects selected — deselect down to 2 to connect`;
   if (anchorState === 'none') return 'Select a source object';
   if (anchorState === 'source') return autoConnect
     ? 'Shift-click a target to connect'
     : 'Select a target to connect';
   if (anchorState === 'both' && pendingNames) return 'Ready — click Connect below';
   if (anchorState === 'both') return 'Adjust settings or shift-click next target';
-  return null;
+  return 'Select a source object';
 }
 
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function App() {
-  const [flash, setFlash] = useState<{ source: string; target: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [anchorState, setAnchorState] = useState<'none' | 'source' | 'both'>('none');
   const [autoConnect, setAutoConnect] = useState(true);
@@ -303,8 +300,6 @@ export default function App() {
   const [targetOffset, setTargetOffset] = useState(0);
   const [color, setColor] = useState('#000000');
   const [hexInput, setHexInput] = useState('000000');
-
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const s: ConnectSettings = { sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color, autoConnect };
@@ -330,44 +325,25 @@ export default function App() {
         setErrorMsg(null);
         setPendingNames(null);
         setAnchorState('both');
-        if (flashTimer.current) clearTimeout(flashTimer.current);
-        setFlash({ source: msg.source.name, target: msg.target.name });
-        flashTimer.current = setTimeout(() => setFlash(null), 2500);
       }
       if (msg.type === 'error') setErrorMsg(msg.message);
     };
   }, []);
 
-  const hint = getHint(anchorState, autoConnect, pendingNames, !!flash, selCount);
+  const hint = getHint(anchorState, autoConnect, pendingNames, selCount);
   const liveEdit = anchorState === 'both' && !pendingNames;
 
   return (
     <div style={css.root}>
       <div style={css.scrollArea}>
 
-      {/* ── Status slot: success toast OR hint — same fixed space, no layout jump ── */}
-      <div style={css.statusSlot}>
-        {flash ? (
-          <div style={css.toast}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-              <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
-              <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <span style={css.toastText}>
-              <b>{flash.source}</b>
-              <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
-              <b>{flash.target}</b>
-            </span>
-          </div>
-        ) : (
-          <div style={css.inlineHint}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-              <circle cx="6" cy="6" r="5" stroke="#0d99ff" strokeWidth="1.2"/>
-              <path d="M6 5.5v3M6 3.5v.5" stroke="#0d99ff" strokeWidth="1.2" strokeLinecap="round"/>
-            </svg>
-            <span>{hint}</span>
-          </div>
-        )}
+      {/* ── Hint bar — always visible card at top ── */}
+      <div style={css.hintBar}>
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+          <circle cx="6" cy="6" r="5" stroke="#bbb" strokeWidth="1.2"/>
+          <path d="M6 5.5v3M6 3.5v.5" stroke="#bbb" strokeWidth="1.2" strokeLinecap="round"/>
+        </svg>
+        <span>{hint}</span>
       </div>
 
       {/* ── Line type ── */}
@@ -607,17 +583,6 @@ const css: Record<string, React.CSSProperties> = {
     transition: 'transform 0.15s ease',
   },
 
-  // Inline status hint (always visible, no animation)
-  inlineHint: {
-    display: 'flex', alignItems: 'center', gap: 6,
-    padding: '7px 10px',
-    background: '#f0f6ff',
-    border: '1px solid #d6eaff',
-    borderRadius: 7,
-    fontSize: 11,
-    color: '#3a7cc5',
-  },
-
   // Live-edit hint inside Connection points card
   liveEditHint: {
     fontSize: 10,
@@ -649,25 +614,19 @@ const css: Record<string, React.CSSProperties> = {
     background: '#e0e0e0', color: '#aaa', cursor: 'not-allowed',
   },
 
-  // Status slot — fixed container shared by success toast and hint (no layout jump)
-  statusSlot: {
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-
-  // Success toast
-  toast: {
-    display: 'flex', alignItems: 'center', gap: 7,
-    padding: '8px 12px',
+  // Hint bar — always-visible card at top of panel
+  hintBar: {
     background: '#fff',
-    border: '1px solid #d0f0de',
-    borderRadius: 8,
-    fontSize: 12,
-    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    borderRadius: 10,
+    padding: '10px 12px',
+    fontSize: 11,
+    color: '#999',
+    fontWeight: 500,
+    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 7,
   },
-  toastIn:  {},
-  toastOut: {},
-  toastText: { color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
 
   // Card
   card: {
