@@ -10,6 +10,7 @@ interface ConnectSettings {
   strokeWeight: number; lineType: LineType;
   sourceOffset: number; targetOffset: number;
   color: string;
+  autoConnect: boolean;
 }
 
 // ─── Icons (inline SVG as React components) ────────────────────────────────
@@ -249,12 +250,45 @@ function AnchorEditor({
   );
 }
 
+function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      title={value ? 'Auto-connect on' : 'Auto-connect off'}
+      style={css.toggleBtn}
+    >
+      <span style={css.toggleLabel}>Auto</span>
+      <span style={{ ...css.toggleTrack, background: value ? '#0d99ff' : '#d0d0d0' }}>
+        <span style={{ ...css.toggleThumb, transform: value ? 'translateX(12px)' : 'translateX(1px)' }} />
+      </span>
+    </button>
+  );
+}
+
+function getHint(
+  anchorState: 'none' | 'source' | 'both',
+  autoConnect: boolean,
+  pendingNames: { source: string; target: string } | null,
+  hasFlash: boolean,
+): string | null {
+  if (hasFlash) return null;
+  if (anchorState === 'none') return 'Select a source object';
+  if (anchorState === 'source') return autoConnect
+    ? 'Shift-click a target to connect'
+    : 'Select a target to connect';
+  if (anchorState === 'both' && pendingNames) return 'Ready — click Connect below';
+  if (anchorState === 'both') return 'Adjust settings or shift-click next target';
+  return null;
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function App() {
   const [flash, setFlash] = useState<{ source: string; target: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [anchorState, setAnchorState] = useState<'none' | 'source' | 'both'>('none');
+  const [autoConnect, setAutoConnect] = useState(true);
+  const [pendingNames, setPendingNames] = useState<{ source: string; target: string } | null>(null);
 
   const [sourceMagnet, setSourceMagnet] = useState<Magnet>('AUTO');
   const [targetMagnet, setTargetMagnet] = useState<Magnet>('AUTO');
@@ -270,9 +304,9 @@ export default function App() {
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const s: ConnectSettings = { sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color };
+    const s: ConnectSettings = { sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color, autoConnect };
     parent.postMessage({ pluginMessage: { type: 'update-settings', settings: s } }, '*');
-  }, [sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color]);
+  }, [sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color, autoConnect]);
 
   useEffect(() => {
     window.onmessage = (e) => {
@@ -280,10 +314,17 @@ export default function App() {
       if (!msg) return;
       if (msg.type === 'state-update') {
         setErrorMsg(null);
+        setPendingNames(null);
         setAnchorState(msg.source ? 'source' : 'none');
+      }
+      if (msg.type === 'ready-to-connect') {
+        setErrorMsg(null);
+        setAnchorState('both');
+        setPendingNames({ source: msg.source.name, target: msg.target.name });
       }
       if (msg.type === 'connected') {
         setErrorMsg(null);
+        setPendingNames(null);
         setAnchorState('both');
         if (flashTimer.current) clearTimeout(flashTimer.current);
         setFlash({ source: msg.source.name, target: msg.target.name });
@@ -296,18 +337,34 @@ export default function App() {
   return (
     <div style={css.root}>
 
-      {/* ── Toast notification ── */}
-      <div style={{ ...css.toast, ...(flash ? css.toastIn : css.toastOut) }}>
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
-          <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
-          <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-        <span style={css.toastText}>
-          <b>{flash?.source}</b>
-          <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
-          <b>{flash?.target}</b>
-        </span>
-      </div>
+      {/* ── Unified top slot: success toast OR hint toast ── */}
+      {(() => {
+        const hint = getHint(anchorState, autoConnect, pendingNames, !!flash);
+        return (
+          <>
+            {/* Success toast */}
+            <div style={{ ...css.toast, ...(flash ? css.toastIn : css.toastOut) }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                <circle cx="7" cy="7" r="6" fill="#14ae5c"/>
+                <path d="M4 7l2 2 4-4" stroke="white" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              <span style={css.toastText}>
+                <b>{flash?.source}</b>
+                <span style={{ margin: '0 5px', opacity: 0.5 }}>→</span>
+                <b>{flash?.target}</b>
+              </span>
+            </div>
+            {/* Hint toast */}
+            <div style={{ ...css.hintToast, ...(!flash && hint ? css.toastIn : css.toastOut) }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                <circle cx="7" cy="7" r="6" stroke="#0d99ff" strokeWidth="1.4"/>
+                <path d="M7 6.5v3.5M7 4.5v.5" stroke="#0d99ff" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+              <span style={css.hintText}>{hint}</span>
+            </div>
+          </>
+        );
+      })()}
 
       {/* ── Line type ── */}
       <div style={css.card}>
@@ -328,7 +385,10 @@ export default function App() {
 
       {/* ── Connection points (visual anchor editor) ── */}
       <div style={css.card}>
-        <Label>Connection points</Label>
+        <div style={css.cardHeader}>
+          <Label>Connection points</Label>
+          <Toggle value={autoConnect} onChange={setAutoConnect} />
+        </div>
         <AnchorEditor
           sourceMagnet={sourceMagnet}
           targetMagnet={targetMagnet}
@@ -463,6 +523,20 @@ export default function App() {
         </div>
       )}
 
+      {/* ── Footer: Connect button (manual mode only) ── */}
+      <div style={css.footer}>
+        {pendingNames && (
+          <button
+            style={css.connectBtn}
+            onClick={() => parent.postMessage({ pluginMessage: { type: 'connect-now' } }, '*')}
+          >
+            Connect: <b style={{ marginLeft: 4 }}>{pendingNames.source}</b>
+            <span style={{ opacity: 0.5, margin: '0 5px' }}>→</span>
+            <b>{pendingNames.target}</b>
+          </button>
+        )}
+      </div>
+
     </div>
   );
 }
@@ -481,6 +555,59 @@ const css: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 6,
     boxSizing: 'border-box',
+  },
+
+  // Card header row (label + toggle)
+  cardHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  },
+
+  // Toggle button
+  toggleBtn: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+  },
+  toggleLabel: {
+    fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
+    textTransform: 'uppercase' as const, color: '#bbb',
+  },
+  toggleTrack: {
+    position: 'relative' as const, width: 26, height: 14,
+    borderRadius: 7, transition: 'background 0.15s ease', flexShrink: 0,
+  },
+  toggleThumb: {
+    position: 'absolute' as const, top: 2, width: 10, height: 10,
+    borderRadius: 5, background: '#fff',
+    boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
+    transition: 'transform 0.15s ease',
+  },
+
+  // Hint toast
+  hintToast: {
+    display: 'flex', alignItems: 'center', gap: 7,
+    padding: '8px 12px',
+    background: '#fff',
+    border: '1px solid #e8e8e8',
+    borderRadius: 8,
+    fontSize: 12,
+    transition: 'opacity 0.25s ease, transform 0.25s ease',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  },
+  hintText: { color: '#666', flex: 1 },
+
+  // Footer
+  footer: {
+    marginTop: 'auto' as const,
+    paddingTop: 4,
+  },
+  connectBtn: {
+    width: '100%', height: 34,
+    background: '#0d99ff', color: '#fff',
+    border: 'none', borderRadius: 8,
+    fontSize: 12, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const,
+    transition: 'background 0.1s ease',
   },
 
   // Toast

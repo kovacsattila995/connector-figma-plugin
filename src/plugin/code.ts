@@ -22,6 +22,7 @@ interface ConnectSettings {
   sourceOffset: number;
   targetOffset: number;
   color: string;
+  autoConnect: boolean;
 }
 
 // --- Plugin state ---
@@ -56,7 +57,12 @@ let settings: ConnectSettings = {
   sourceOffset: 0,
   targetOffset: 0,
   color: '#000000',
+  autoConnect: true,
 };
+
+// Stores a resolved source+target pair when autoConnect is OFF.
+// Cleared after connect-now or any selection change.
+let pendingPair: { sourceNode: SceneNode; targetNode: SceneNode } | null = null;
 
 figma.showUI(__html__, { width: 340, height: 520, title: 'Connector' });
 
@@ -336,6 +342,11 @@ function resolveDirection(
   }
 }
 
+// Clears any pending (unexecuted) pair when the selection changes.
+function clearPending() {
+  pendingPair = null;
+}
+
 // --- Selection tracking ---
 // The entire state is derived from the CURRENT Figma selection.
 //
@@ -359,6 +370,7 @@ figma.on('selectionchange', () => {
   }
 
   if (sel.length === 0) {
+    clearPending();
     prevSingleSelectionId = null;
     lastConnection = null;
     figma.ui.postMessage({ type: 'state-update', source: null, target: null });
@@ -370,6 +382,7 @@ figma.on('selectionchange', () => {
     if (lastConnection && sel[0].id !== lastConnection.targetId) {
       lastConnection = null;
     }
+    clearPending();
     prevSingleSelectionId = sel[0].id;
     figma.ui.postMessage({ type: 'state-update', source: nodeInfo(sel[0]), target: null });
     return;
@@ -378,37 +391,45 @@ figma.on('selectionchange', () => {
   if (sel.length === 2) {
     // New pair selected → any previous live-update context is gone.
     lastConnection = null;
+    clearPending();
 
-    // Resolve which is source and which is target based on click order
     const { sourceNode, targetNode } = resolveDirection(sel[0], sel[1]);
 
-    try {
-      const vector = doConnect(sourceNode, targetNode, settings);
-
-      // Remember this connection for live-update while target stays selected.
-      lastConnection = {
-        sourceId: sourceNode.id,
-        targetId: targetNode.id,
-        vectorId: vector.id,
-      };
-
-      // After connecting, keep target selected → becomes source for next connection.
-      suppressSelectionChangeForTargetId = targetNode.id;
-      prevSingleSelectionId = targetNode.id;
-      figma.currentPage.selection = [targetNode];
+    if (settings.autoConnect) {
+      // Auto mode: connect immediately
+      try {
+        const vector = doConnect(sourceNode, targetNode, settings);
+        lastConnection = {
+          sourceId: sourceNode.id,
+          targetId: targetNode.id,
+          vectorId: vector.id,
+        };
+        suppressSelectionChangeForTargetId = targetNode.id;
+        prevSingleSelectionId = targetNode.id;
+        figma.currentPage.selection = [targetNode];
+        figma.ui.postMessage({
+          type: 'connected',
+          source: nodeInfo(sourceNode),
+          target: nodeInfo(targetNode),
+          newSource: nodeInfo(targetNode),
+        });
+      } catch (err) {
+        figma.ui.postMessage({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+      }
+    } else {
+      // Manual mode: store pair and notify UI
+      pendingPair = { sourceNode, targetNode };
       figma.ui.postMessage({
-        type: 'connected',
+        type: 'ready-to-connect',
         source: nodeInfo(sourceNode),
         target: nodeInfo(targetNode),
-        newSource: nodeInfo(targetNode),
       });
-    } catch (err) {
-      figma.ui.postMessage({ type: 'error', message: err instanceof Error ? err.message : String(err) });
     }
     return;
   }
 
   // 3+ elements — clear UI and live-update context
+  clearPending();
   prevSingleSelectionId = null;
   lastConnection = null;
   figma.ui.postMessage({ type: 'state-update', source: null, target: null });
@@ -435,8 +456,42 @@ figma.ui.onmessage = (msg: {
 }) => {
   if (msg.type === 'update-settings' && msg.settings) {
     settings = msg.settings;
-    // If a connection was just made and its target is still selected,
-    // replace the connector live with the updated settings.
     tryReroute();
+  }
+
+  if (msg.type === 'connect-now') {
+    if (!pendingPair) return; // stale click guard
+    const { sourceNode, targetNode } = pendingPair;
+
+    // Validate nodes still exist
+    const srcCheck = figma.getNodeById(sourceNode.id);
+    const tgtCheck = figma.getNodeById(targetNode.id);
+    if (!srcCheck || !tgtCheck) {
+      pendingPair = null;
+      figma.ui.postMessage({ type: 'error', message: 'One or both nodes were deleted.' });
+      return;
+    }
+
+    try {
+      const vector = doConnect(sourceNode, targetNode, settings);
+      lastConnection = {
+        sourceId: sourceNode.id,
+        targetId: targetNode.id,
+        vectorId: vector.id,
+      };
+      pendingPair = null;
+      suppressSelectionChangeForTargetId = targetNode.id;
+      prevSingleSelectionId = targetNode.id;
+      figma.currentPage.selection = [targetNode];
+      figma.ui.postMessage({
+        type: 'connected',
+        source: nodeInfo(sourceNode),
+        target: nodeInfo(targetNode),
+        newSource: nodeInfo(targetNode),
+      });
+    } catch (err) {
+      pendingPair = null;
+      figma.ui.postMessage({ type: 'error', message: err instanceof Error ? err.message : String(err) });
+    }
   }
 };
