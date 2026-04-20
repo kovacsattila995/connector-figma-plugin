@@ -1,17 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-
-type Magnet = 'AUTO' | 'TOP' | 'RIGHT' | 'BOTTOM' | 'LEFT';
-type StrokeCap = 'NONE' | 'ARROW_LINES' | 'ARROW_EQUILATERAL' | 'TRIANGLE_FILLED' | 'CIRCLE_FILLED' | 'DIAMOND_FILLED';
-type LineType = 'ELBOW' | 'STRAIGHT' | 'CURVED';
-
-interface ConnectSettings {
-  sourceMagnet: Magnet; targetMagnet: Magnet;
-  startCap: StrokeCap; endCap: StrokeCap;
-  strokeWeight: number; lineType: LineType;
-  sourceOffset: number; targetOffset: number;
-  color: string;
-  autoConnect: boolean;
-}
+import {
+  ConnectSettings,
+  Magnet,
+  StrokeCap,
+  LineType,
+  ColorPresets,
+  PresetSlot,
+  INITIAL_PRESETS,
+} from '../shared/colors';
 
 // ─── Icons (inline SVG as React components) ────────────────────────────────
 
@@ -39,6 +35,7 @@ function IconCurved() {
   );
 }
 
+
 // ─── Constants ─────────────────────────────────────────────────────────────
 
 const CAPS: { label: string; value: StrokeCap; title: string }[] = [
@@ -56,6 +53,13 @@ const LINE_TYPES: { label: string; value: LineType; icon: React.ReactNode }[] = 
 ];
 
 const ANCHOR_SIDES: Magnet[] = ['AUTO', 'TOP', 'BOTTOM', 'LEFT', 'RIGHT'];
+
+const PRESET_LABELS: Record<PresetSlot, string> = {
+  default: 'Default',
+  positive: 'Positive',
+  negative: 'Negative',
+};
+const PRESET_ORDER: PresetSlot[] = ['default', 'positive', 'negative'];
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
@@ -114,14 +118,15 @@ function AnchorDot({
   const r = 5;
   return (
     <g onClick={onClick} style={{ cursor: 'pointer' }}>
-      {/* Invisible hit area */}
       <circle cx={x} cy={y} r={10} fill="transparent" />
       <circle
         cx={x} cy={y} r={r}
-        fill={active ? '#0d99ff' : '#f8f8f8'}
-        stroke={active ? '#0d99ff' : '#c4c4c4'}
-        strokeWidth={1.5}
-        strokeDasharray={isAuto && !active ? '2.2 1.4' : undefined}
+        style={{
+          fill: active ? '#0d99ff' : 'var(--dot-f)',
+          stroke: active ? '#0d99ff' : 'var(--dot-s)',
+          strokeWidth: 1.5,
+          strokeDasharray: isAuto && !active ? '2.2 1.4' : undefined,
+        } as React.CSSProperties}
       />
       {isAuto && !active && (
         <text
@@ -129,8 +134,7 @@ function AnchorDot({
           textAnchor="middle"
           fontSize={5.5}
           fontWeight="700"
-          fill="#aaa"
-          style={{ pointerEvents: 'none', userSelect: 'none' }}
+          style={{ fill: 'var(--dot-s)', pointerEvents: 'none', userSelect: 'none' } as React.CSSProperties}
         >
           A
         </text>
@@ -148,7 +152,6 @@ function AnchorEditor({
   onTargetChange: (m: Magnet) => void;
   activeState: 'none' | 'source' | 'both';
 }) {
-  // Box geometry (within a 296×78 viewBox)
   const srcBox: BoxDef = { x: 14, y: 13, w: 58, h: 40 };
   const tgtBox: BoxDef = { x: 224, y: 13, w: 58, h: 40 };
 
@@ -172,25 +175,25 @@ function AnchorEditor({
         </marker>
       </defs>
 
-      {/* ── Source box ── */}
       <rect
         x={srcBox.x} y={srcBox.y} width={srcBox.w} height={srcBox.h}
         rx={5}
-        fill={srcActive ? '#f0f6ff' : '#f7f7f7'}
-        stroke={srcActive ? '#0d99ff' : '#e0e0e0'}
-        strokeWidth={1.5}
+        style={{
+          fill: srcActive ? 'var(--hi)' : 'var(--node-f)',
+          stroke: srcActive ? '#0d99ff' : 'var(--node-s)',
+          strokeWidth: 1.5,
+        } as React.CSSProperties}
       />
-
-      {/* ── Target box ── */}
       <rect
         x={tgtBox.x} y={tgtBox.y} width={tgtBox.w} height={tgtBox.h}
         rx={5}
-        fill={tgtActive ? '#f0f6ff' : '#f7f7f7'}
-        stroke={tgtActive ? '#0d99ff' : '#e0e0e0'}
-        strokeWidth={1.5}
+        style={{
+          fill: tgtActive ? 'var(--hi)' : 'var(--node-f)',
+          stroke: tgtActive ? '#0d99ff' : 'var(--node-s)',
+          strokeWidth: 1.5,
+        } as React.CSSProperties}
       />
 
-      {/* ── Connector line between active anchors ── */}
       <line
         x1={srcPt.x} y1={srcPt.y}
         x2={tgtPt.x} y2={tgtPt.y}
@@ -201,7 +204,6 @@ function AnchorEditor({
         markerEnd="url(#ae-arrow)"
       />
 
-      {/* ── Source anchor dots ── */}
       {ANCHOR_SIDES.map(side => {
         const p = anchorPos(srcBox, side);
         return (
@@ -214,8 +216,6 @@ function AnchorEditor({
           />
         );
       })}
-
-      {/* ── Target anchor dots ── */}
       {ANCHOR_SIDES.map(side => {
         const p = anchorPos(tgtBox, side);
         return (
@@ -229,20 +229,17 @@ function AnchorEditor({
         );
       })}
 
-      {/* ── Box labels ── */}
       <text
         x={srcBox.x + srcBox.w / 2} y={74}
         textAnchor="middle" fontSize={9} fontWeight="600"
-        fill="#c0c0c0"
-        style={{ userSelect: 'none', pointerEvents: 'none' }}
+        style={{ fill: 'var(--dot-s)', userSelect: 'none', pointerEvents: 'none' } as React.CSSProperties}
       >
         Source
       </text>
       <text
         x={tgtBox.x + tgtBox.w / 2} y={74}
         textAnchor="middle" fontSize={9} fontWeight="600"
-        fill="#c0c0c0"
-        style={{ userSelect: 'none', pointerEvents: 'none' }}
+        style={{ fill: 'var(--dot-s)', userSelect: 'none', pointerEvents: 'none' } as React.CSSProperties}
       >
         Target
       </text>
@@ -258,7 +255,7 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
       style={css.toggleBtn}
     >
       <span style={css.toggleLabel}>Auto</span>
-      <span style={{ ...css.toggleTrack, background: value ? '#0d99ff' : '#d0d0d0' }}>
+      <span style={{ ...css.toggleTrack, background: value ? '#0d99ff' : 'var(--tog-off)' }}>
         <span style={{ ...css.toggleThumb, transform: value ? 'translateX(12px)' : 'translateX(0)' }} />
       </span>
     </button>
@@ -281,9 +278,101 @@ function getHint(
   return 'Select a source object';
 }
 
+// ─── Color preset components ──────────────────────────────────────────────
+
+function ColorPresetsCard({
+  presets, setPresets,
+}: {
+  presets: ColorPresets;
+  setPresets: (next: ColorPresets) => void;
+}) {
+  const slot = presets.active;
+  const activeHex = presets[slot];
+  const [hexInput, setHexInput] = useState(activeHex.replace('#', ''));
+
+  useEffect(() => {
+    setHexInput(presets[slot].replace('#', '').padEnd(6, '0').slice(0, 6));
+  }, [slot, presets]);
+
+  const setActiveHex = (hex: string) => {
+    setPresets({ ...presets, [slot]: hex });
+  };
+
+  return (
+    <div style={css.card}>
+      <Label>Color</Label>
+
+      {/* Segmented selector */}
+      <div style={css.segmented}>
+        {PRESET_ORDER.map((s) => {
+          const active = presets.active === s;
+          return (
+            <button
+              key={s}
+              style={{ ...css.seg, ...(active ? css.segActive : {}) }}
+              onClick={() => setPresets({ ...presets, active: s })}
+            >
+              <span style={{
+                display: 'inline-block', width: 12, height: 12, borderRadius: 6,
+                background: presets[s], border: '1px solid rgba(0,0,0,0.12)',
+                flexShrink: 0,
+              }} />
+              <span style={css.segLabel}>{PRESET_LABELS[s]}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Hex editor for the active preset */}
+      <div style={css.colorRow}>
+        <div style={css.swatchWrap}>
+          <div style={{ ...css.swatch, background: activeHex }} />
+          <input
+            type="color"
+            value={activeHex}
+            onChange={(e) => {
+              const hex = e.target.value;
+              setHexInput(hex.replace('#', ''));
+              setActiveHex(hex);
+            }}
+            style={css.colorNative}
+          />
+        </div>
+        <span style={css.colorHash}>#</span>
+        <input
+          type="text"
+          maxLength={6}
+          value={hexInput}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
+            setHexInput(raw);
+            if (raw.length === 6) setActiveHex('#' + raw);
+          }}
+          onBlur={() => {
+            const padded = hexInput.padEnd(6, '0');
+            setHexInput(padded);
+            setActiveHex('#' + padded);
+          }}
+          style={css.hexInput}
+          spellCheck={false}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function App() {
+  const [dark, setDark] = useState(() => {
+    try { return localStorage.getItem('connector-dark') === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    document.body.classList.toggle('dark', dark);
+    try { localStorage.setItem('connector-dark', dark ? '1' : '0'); } catch {}
+  }, [dark]);
+
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [anchorState, setAnchorState] = useState<'none' | 'source' | 'both'>('none');
   const [autoConnect, setAutoConnect] = useState(true);
@@ -298,13 +387,32 @@ export default function App() {
   const [lineType, setLineType] = useState<LineType>('ELBOW');
   const [sourceOffset, setSourceOffset] = useState(0);
   const [targetOffset, setTargetOffset] = useState(0);
-  const [color, setColor] = useState('#000000');
-  const [hexInput, setHexInput] = useState('000000');
+
+  // Color presets state
+  const [presets, setPresetsState] = useState<ColorPresets>(INITIAL_PRESETS);
+
+  // Guard flag so the plugin-sent initial presets don't trigger a round-trip.
+  const skipNextPresetPost = useRef(false);
 
   useEffect(() => {
-    const s: ConnectSettings = { sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color, autoConnect };
+    const s: ConnectSettings = {
+      sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType,
+      sourceOffset, targetOffset, autoConnect,
+    };
     parent.postMessage({ pluginMessage: { type: 'update-settings', settings: s } }, '*');
-  }, [sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, color, autoConnect]);
+  }, [sourceMagnet, targetMagnet, startCap, endCap, strokeWeight, lineType, sourceOffset, targetOffset, autoConnect]);
+
+  useEffect(() => {
+    if (skipNextPresetPost.current) {
+      skipNextPresetPost.current = false;
+      return;
+    }
+    parent.postMessage({ pluginMessage: { type: 'update-presets', presets } }, '*');
+  }, [presets]);
+
+  const setPresets = (next: ColorPresets) => {
+    setPresetsState(next);
+  };
 
   useEffect(() => {
     window.onmessage = (e) => {
@@ -327,6 +435,11 @@ export default function App() {
         setAnchorState('both');
       }
       if (msg.type === 'error') setErrorMsg(msg.message);
+
+      if (msg.type === 'presets-loaded' && msg.presets) {
+        skipNextPresetPost.current = true;
+        setPresetsState(msg.presets);
+      }
     };
   }, []);
 
@@ -335,18 +448,35 @@ export default function App() {
 
   return (
     <div style={css.root}>
-      <div style={css.scrollArea}>
 
-      {/* ── Hint bar — always visible card at top ── */}
+      {/* Hint bar — fixed at top, outside scroll area */}
       <div style={css.hintBar}>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
-          <circle cx="6" cy="6" r="5" stroke="#bbb" strokeWidth="1.2"/>
-          <path d="M6 5.5v3M6 3.5v.5" stroke="#bbb" strokeWidth="1.2" strokeLinecap="round"/>
+          <circle cx="6" cy="6" r="5" stroke="var(--tx3)" strokeWidth="1.2"/>
+          <path d="M6 5.5v3M6 3.5v.5" stroke="var(--tx3)" strokeWidth="1.2" strokeLinecap="round"/>
         </svg>
-        <span>{hint}</span>
+        <span style={{ flex: 1 }}>{hint}</span>
+        <button
+          onClick={() => setDark(d => !d)}
+          title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+          style={css.themeBtn}
+        >
+          {dark ? (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="3" stroke="var(--tx2)" strokeWidth="1.3"/>
+              <path d="M7 1v1.5M7 11.5V13M1 7h1.5M11.5 7H13M2.93 2.93l1.06 1.06M10.01 10.01l1.06 1.06M2.93 11.07l1.06-1.06M10.01 3.99l1.06-1.06" stroke="var(--tx2)" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M11.5 8.5A5 5 0 0 1 5.5 2.5a5 5 0 1 0 6 6z" stroke="var(--tx2)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </button>
       </div>
 
-      {/* ── Line type ── */}
+      <div style={css.scrollArea}>
+
+      {/* Line type */}
       <div style={css.card}>
         <Label>Line type</Label>
         <div style={css.segmented}>
@@ -363,7 +493,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Connection points (visual anchor editor) ── */}
+      {/* Connection points */}
       <div style={css.card}>
         <div style={css.cardHeader}>
           <Label>Connection points</Label>
@@ -383,7 +513,7 @@ export default function App() {
         )}
       </div>
 
-      {/* ── Arrowheads ── */}
+      {/* Arrowheads */}
       <div style={css.card}>
         <Label>Arrowheads</Label>
         <div style={css.twoCol}>
@@ -398,9 +528,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* ── Stroke & Offset ── */}
+      {/* Stroke & Offset (color row removed) */}
       <div style={css.card}>
-        {/* Stroke weight — full width */}
         <div style={{ ...css.colItem, gap: 6 }}>
           <Label>Stroke weight</Label>
           <div style={css.sliderRow}>
@@ -423,7 +552,6 @@ export default function App() {
 
         <div style={css.divider} />
 
-        {/* Offset — source + target */}
         <Label>Offset</Label>
         <div style={css.twoCol}>
           <div style={css.colItem}>
@@ -451,53 +579,12 @@ export default function App() {
             </div>
           </div>
         </div>
-
-        <div style={css.divider} />
-
-        <div style={css.colItem}>
-          <Label>Color</Label>
-          <div style={css.colorRow}>
-            {/* Native color swatch */}
-            <div style={css.swatchWrap}>
-              <div style={{ ...css.swatch, background: color }} />
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => {
-                  const hex = e.target.value;
-                  setColor(hex);
-                  setHexInput(hex.replace('#', ''));
-                }}
-                style={css.colorNative}
-              />
-            </div>
-            {/* Hash prefix */}
-            <span style={css.colorHash}>#</span>
-            {/* Hex text input */}
-            <input
-              type="text"
-              maxLength={6}
-              value={hexInput}
-              onChange={(e) => {
-                const raw = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6);
-                setHexInput(raw);
-                if (raw.length === 6) {
-                  setColor('#' + raw);
-                }
-              }}
-              onBlur={() => {
-                const padded = hexInput.padEnd(6, '0');
-                setHexInput(padded);
-                setColor('#' + padded);
-              }}
-              style={css.hexInput}
-              spellCheck={false}
-            />
-          </div>
-        </div>
       </div>
 
-      {/* ── Error ── */}
+      {/* Color presets */}
+      <ColorPresetsCard presets={presets} setPresets={setPresets} />
+
+      {/* Error */}
       {errorMsg && (
         <div style={css.error}>
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
@@ -510,7 +597,6 @@ export default function App() {
 
       </div>{/* end scrollArea */}
 
-      {/* ── Footer: only shown in manual mode ── */}
       {!autoConnect && (
         <div style={css.footer}>
           {pendingNames ? (
@@ -534,14 +620,17 @@ export default function App() {
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────
+// ─── Styles (colors via CSS variables — see index.html for light/dark defs) ──
+
+// Cast CSS-variable strings past TypeScript's strict color types.
+const v = (s: string) => s as unknown as string;
 
 const css: Record<string, React.CSSProperties> = {
   root: {
     fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
     fontSize: 12,
-    color: '#1a1a1a',
-    background: '#f0f0f0',
+    color: v('var(--tx)'),
+    background: v('var(--bg)'),
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
@@ -557,19 +646,16 @@ const css: Record<string, React.CSSProperties> = {
     boxSizing: 'border-box' as const,
   },
 
-  // Card header row (label + toggle)
   cardHeader: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
   },
-
-  // Toggle button
   toggleBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
     background: 'none', border: 'none', cursor: 'pointer', padding: 0,
   },
   toggleLabel: {
     fontSize: 10, fontWeight: 600, letterSpacing: '0.05em',
-    textTransform: 'uppercase' as const, color: '#bbb',
+    textTransform: 'uppercase' as const, color: v('var(--tx3)'),
   },
   toggleTrack: {
     position: 'relative' as const, width: 28, height: 16,
@@ -583,20 +669,15 @@ const css: Record<string, React.CSSProperties> = {
     transition: 'transform 0.15s ease',
   },
 
-  // Live-edit hint inside Connection points card
   liveEditHint: {
-    fontSize: 10,
-    color: '#aaa',
-    lineHeight: 1.5,
-    paddingTop: 2,
+    fontSize: 10, color: v('var(--tx2)'), lineHeight: 1.5, paddingTop: 2,
   },
 
-  // Footer (always at bottom, fixed height)
   footer: {
     flexShrink: 0,
     padding: '8px 10px',
-    borderTop: '1px solid #e8e8e8',
-    background: '#f0f0f0',
+    borderTop: v('1px solid var(--ft-bd)'),
+    background: v('var(--bg)'),
     minHeight: 50,
     display: 'flex',
     alignItems: 'center',
@@ -611,193 +692,130 @@ const css: Record<string, React.CSSProperties> = {
     transition: 'background 0.1s ease',
   },
   connectBtnDisabled: {
-    background: '#e0e0e0', color: '#aaa', cursor: 'not-allowed',
+    background: v('var(--bd)'), color: v('var(--tx2)'), cursor: 'not-allowed',
   },
 
-  // Hint bar — always-visible card at top of panel
   hintBar: {
-    background: '#fff',
-    borderRadius: 10,
-    padding: '10px 12px',
+    background: v('var(--sf)'),
+    borderBottom: v('1px solid var(--bd)'),
+    padding: '9px 12px',
     fontSize: 11,
-    color: '#999',
+    color: v('var(--tx2)'),
     fontWeight: 500,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
     display: 'flex',
     alignItems: 'center',
     gap: 7,
+    flexShrink: 0,
+  },
+  themeBtn: {
+    width: 26, height: 26, flexShrink: 0,
+    border: v('1px solid var(--bd)'), borderRadius: 6,
+    background: v('var(--sf2)'), cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 0,
   },
 
-  // Card
   card: {
-    background: '#fff',
+    background: v('var(--sf)'),
     borderRadius: 10,
     padding: '11px 12px',
     display: 'flex',
     flexDirection: 'column',
     gap: 8,
-    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+    boxShadow: '0 1px 3px rgba(0,0,0,0.07)',
+    position: 'relative',
   },
 
-  // Labels
   label: {
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: '#999',
+    fontSize: 10, fontWeight: 600, letterSpacing: '0.06em',
+    textTransform: 'uppercase', color: v('var(--tx2)'),
   },
-  colLabel: {
-    fontSize: 10,
-    fontWeight: 600,
-    color: '#bbb',
-    marginBottom: 4,
-  },
+  colLabel: { fontSize: 10, fontWeight: 600, color: v('var(--tx3)'), marginBottom: 4 },
 
-  // Segmented control
-  segmented: {
-    display: 'flex',
-    gap: 4,
-  },
+  segmented: { display: 'flex', gap: 4 },
   seg: {
-    flex: 1,
-    padding: '7px 4px 6px',
-    border: '1px solid #ebebeb',
-    borderRadius: 7,
-    background: '#fafafa',
-    cursor: 'pointer',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 4,
+    flex: 1, padding: '7px 4px 6px',
+    border: v('1px solid var(--bd)'), borderRadius: 7,
+    background: v('var(--sf2)'), cursor: 'pointer',
+    display: 'flex', flexDirection: 'column',
+    alignItems: 'center', gap: 4,
     transition: 'all 0.12s ease',
   },
-  segActive: {
-    background: '#f0f6ff',
-    border: '1px solid #c5deff',
-  },
-  segLabel: {
-    fontSize: 10,
-    fontWeight: 600,
-    color: '#666',
-  },
+  segActive: { background: v('var(--hi)'), border: v('1px solid var(--hb)') },
+  segLabel: { fontSize: 10, fontWeight: 600, color: v('var(--tx4)') },
 
-  // Two-column layout
   twoCol: { display: 'flex', gap: 12 },
   colItem: { display: 'flex', flexDirection: 'column', flex: 1 },
 
-  // Pill group (cap selectors)
   pillGroup: { display: 'flex', gap: 3 },
   pill: {
-    flex: 1,
-    height: 26,
-    border: '1px solid #ebebeb',
-    borderRadius: 5,
-    background: '#fafafa',
-    cursor: 'pointer',
-    fontSize: 12,
-    color: '#888',
-    padding: 0,
+    flex: 1, height: 26,
+    border: v('1px solid var(--bd)'), borderRadius: 5,
+    background: v('var(--sf2)'), cursor: 'pointer',
+    fontSize: 12, color: v('var(--tx2)'), padding: 0,
     transition: 'all 0.1s ease',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
   },
-  pillActive: {
-    background: '#0d99ff',
-    borderColor: '#0d99ff',
-    color: '#fff',
-  },
+  pillActive: { background: '#0d99ff', borderColor: '#0d99ff', color: '#fff' },
 
-  // Slider
   sliderRow: { display: 'flex', alignItems: 'center', gap: 8 },
   slider: { flex: 1, accentColor: '#0d99ff', height: 4 },
-  sliderVal: { fontSize: 11, color: '#888', width: 28, textAlign: 'right', flexShrink: 0 },
   strokeNumInput: {
-    width: 54,
-    height: 26,
-    border: '1px solid #ebebeb',
-    borderRadius: 5,
-    fontSize: 12,
-    color: '#1a1a1a',
-    background: '#fafafa',
-    paddingLeft: 7,
-    paddingRight: 2,
-    flexShrink: 0,
-    boxSizing: 'border-box' as const,
+    width: 54, height: 26,
+    border: v('1px solid var(--bd)'), borderRadius: 5,
+    fontSize: 12, color: v('var(--tx)'), background: v('var(--sf2)'),
+    paddingLeft: 7, paddingRight: 2,
+    flexShrink: 0, boxSizing: 'border-box' as const,
   },
 
-  // Stepper
   stepper: { display: 'flex', alignItems: 'center', gap: 3 },
   stepBtn: {
     width: 26, height: 26,
-    border: '1px solid #ebebeb',
-    borderRadius: 5,
-    background: '#fafafa',
-    cursor: 'pointer',
-    fontSize: 14,
-    color: '#666',
-    padding: 0,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
+    border: v('1px solid var(--bd)'), borderRadius: 5,
+    background: v('var(--sf2)'), cursor: 'pointer',
+    fontSize: 14, color: v('var(--tx4)'), padding: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0,
   },
   stepInput: {
-    flex: 1,
-    height: 26,
-    border: '1px solid #ebebeb',
-    borderRadius: 5,
+    flex: 1, height: 26,
+    border: v('1px solid var(--bd)'), borderRadius: 5,
     textAlign: 'center' as const,
-    fontSize: 12,
-    color: '#1a1a1a',
-    background: '#fafafa',
-    padding: '0 2px',
-    width: 0,
-    minWidth: 0,
+    fontSize: 12, color: v('var(--tx)'), background: v('var(--sf2)'),
+    padding: '0 2px', width: 0, minWidth: 0,
   },
 
-  // Divider
-  divider: { height: 1, background: '#f0f0f0', margin: '2px 0' },
+  divider: { height: 1, background: v('var(--dv)'), margin: '2px 0' },
 
-  // Color picker
-  colorRow: {
-    display: 'flex', alignItems: 'center', gap: 6,
-  },
+  colorRow: { display: 'flex', alignItems: 'center', gap: 6 },
   swatchWrap: {
     position: 'relative', width: 26, height: 26, flexShrink: 0,
     borderRadius: 5, overflow: 'hidden',
-    border: '1px solid #ddd', cursor: 'pointer',
+    border: v('1px solid var(--bd2)'), cursor: 'pointer',
   },
-  swatch: {
-    position: 'absolute', inset: 0,
-    borderRadius: 4,
-  },
+  swatch: { position: 'absolute', inset: 0, borderRadius: 4 },
   colorNative: {
     position: 'absolute', inset: 0,
     opacity: 0, cursor: 'pointer', width: '100%', height: '100%', padding: 0, border: 'none',
   },
-  colorHash: {
-    fontSize: 12, color: '#bbb', fontWeight: 500, userSelect: 'none',
-  },
+  colorHash: { fontSize: 12, color: v('var(--tx3)'), fontWeight: 500, userSelect: 'none' },
   hexInput: {
     flex: 1, height: 26,
-    border: '1px solid #ebebeb', borderRadius: 5,
+    border: v('1px solid var(--bd)'), borderRadius: 5,
     fontSize: 12, fontFamily: "'SF Mono', 'Fira Mono', monospace",
-    color: '#1a1a1a', background: '#fafafa',
+    color: v('var(--tx)'), background: v('var(--sf2)'),
     padding: '0 8px', letterSpacing: '0.05em',
     textTransform: 'uppercase' as const,
   },
 
-  // Error
   error: {
     display: 'flex', alignItems: 'flex-start', gap: 7,
     padding: '9px 12px',
-    background: '#fff5f5',
-    border: '1px solid #ffd0d0',
+    background: v('var(--err-bg)'),
+    border: v('1px solid var(--err-bd)'),
     borderRadius: 8,
     fontSize: 11,
-    color: '#c00',
+    color: v('var(--err-tx)'),
     wordBreak: 'break-word' as const,
   },
 };
