@@ -8,6 +8,55 @@
       *, *::before, *::after { box-sizing: border-box; }
       html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
       #root { height: 100%; }
+
+      /* ── Light theme (default) ── */
+      :root {
+        --bg:     #f0f0f0;
+        --sf:     #ffffff;
+        --sf2:    #fafafa;
+        --bd:     #ebebeb;
+        --bd2:    #dddddd;
+        --dv:     #f0f0f0;
+        --tx:     #1a1a1a;
+        --tx2:    #555555;
+        --tx3:    #777777;
+        --tx4:    #444444;
+        --hi:     #f0f6ff;
+        --hb:     #c5deff;
+        --ft-bd:  #e8e8e8;
+        --dot-f:  #f8f8f8;
+        --dot-s:  #777777;
+        --node-f: #f7f7f7;
+        --node-s: #e0e0e0;
+        --err-bg: #fff5f5;
+        --err-bd: #ffd0d0;
+        --err-tx: #cc0000;
+        --tog-off: #d0d0d0;
+      }
+      /* ── Dark theme ── */
+      body.dark {
+        --bg:     #1c1c1c;
+        --sf:     #272727;
+        --sf2:    #303030;
+        --bd:     #3a3a3a;
+        --bd2:    #464646;
+        --dv:     #333333;
+        --tx:     #e0e0e0;
+        --tx2:    #bbbbbb;
+        --tx3:    #aaaaaa;
+        --tx4:    #aaaaaa;
+        --hi:     #182f4a;
+        --hb:     #2a5f9e;
+        --ft-bd:  #333333;
+        --dot-f:  #383838;
+        --dot-s:  #aaaaaa;
+        --node-f: #2e2e2e;
+        --node-s: #3a3a3a;
+        --err-bg: #3a1515;
+        --err-bd: #6a2a2a;
+        --err-tx: #ff6b6b;
+        --tog-off: #444444;
+      }
     </style>
   </head>
   <body>
